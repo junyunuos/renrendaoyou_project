@@ -1,0 +1,338 @@
+//
+//  HomeViewController.m
+//  arc_peiwowan
+//
+//  Created by Selina Lee on 14-10-31.
+//  Copyright (c) 2014年 Selina Lee. All rights reserved.
+//
+
+#import "HomeViewController.h"
+#import "HomeCustomTitleView.h"
+#import "AppDelegate.h"
+#import "HomeCommonCell.h"
+#import "HomeDynamicCell.h"
+
+@interface HomeViewController ()
+{
+    UITableView *_tableView;
+    NSMutableArray *results;
+    NSInteger _currentSelectedIndex;
+    NSString *_lastTime;
+    NSString *_requestNum;
+    NSString *_requestPath;
+}
+
+@end
+
+@implementation HomeViewController
+
+- (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil
+{
+    self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
+    if (self) {
+        // Custom initialization
+    }
+    return self;
+}
+
+- (void)viewDidLoad
+{
+    [super viewDidLoad];
+    
+    
+    //初始化navigationbar
+    [self initNavigationBar];
+    
+    //
+    [self initMainView];
+    
+    //获取数据
+    [self loadHomeData];
+    
+    
+}
+
+
+-(void)initNavigationBar
+{
+    
+    //右键
+    //UIImage *rightImg = [UIImage imageNamed:@"photoBtn.png"];
+    UIButton *rightBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+    rightBtn.frame =CGRectMake(0, 0, 45, 44);
+    //[rightBtn setBackgroundImage:rightImg forState:UIControlStateNormal];
+    //[leftBtn setImage:[UIImage imageNamed:@"clickBackBtn.png"] forState:UIControlStateHighlighted];
+    [rightBtn setTitle:@"🔍" forState:UIControlStateNormal];
+    [rightBtn setTitleColor:[UIColor blueColor] forState:UIControlStateNormal];
+    [rightBtn addTarget:self action:@selector(onClickRightBtn:) forControlEvents:UIControlEventTouchUpInside];
+    UIBarButtonItem* rightitem=[[UIBarButtonItem alloc] initWithCustomView:rightBtn];
+    self.navigationItem.rightBarButtonItem=rightitem;
+    
+    //titleView
+    NSArray *titleArray = @[@"最新",@"关注",@"动态"];
+    HomeCustomTitleView *titleView = [[HomeCustomTitleView alloc] initWithFrame:CGRectMake(60, 7, SCREEN_WIDTH-120, 30)];
+    [titleView initView:titleArray];
+    [titleView addEventListener:kHomeTitleString object:self sel:@selector(onclickTitleViewEvent:)];
+//    [titleView addEventListener:kHomeTitleString block:^(Event *event) {
+//        DataEvent* devent=(DataEvent*)event;
+//        NSNumber* v=(NSNumber*)devent.data;
+//        NSLog(@"---click postion: %@",v);
+//        NSLog(@"---click postion target: %@",event.target);
+//
+//    }];
+    self.navigationItem.titleView = titleView;
+    
+    
+    
+}
+
+
+-(void)initMainView
+{
+    
+    _lastTime = @"";
+    _requestNum = @"10";
+    _requestPath = home_hotWays;
+    _currentSelectedIndex = SelectedTitleNewsetButton;
+    results = [[NSMutableArray alloc] init];
+    
+    _tableView = [[UITableView alloc] initWithFrame:CGRectMake(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT-44) style:UITableViewStylePlain];
+    //_tableView.backgroundColor = [UIColor grayColor];
+    _tableView.delegate = self;
+    _tableView.dataSource = self;
+    _tableView.showsVerticalScrollIndicator = NO;
+    _tableView.separatorStyle = UITableViewCellSeparatorStyleNone;
+    [self.view addSubview:_tableView];
+}
+
+
+-(void)loadHomeData
+{
+    
+    NSMutableDictionary * dic =[NSMutableDictionary dictionaryWithCapacity:0];
+    [dic setObject:APPDelagate.uid forKey:@"uid"];
+    [dic setObject:APPDelagate.token forKey:@"token"];
+    [dic setObject:_lastTime forKey:@"last_time"];
+    [dic setObject:_requestNum forKey:@"num"];
+    
+    //NSLog(@"requestPath : %@",_requestPath);
+    
+    MKNetworkOperation * op = [APPDelagate.appNetwork operationWithPath:_requestPath params:dic httpMethod:@"GET"];
+    [op addCompletionHandler:^(MKNetworkOperation *completedOperation) {
+        
+        id json = [completedOperation responseJSON];
+        NSDictionary *jsonDic = (NSDictionary *)json;
+        NSString *isOk = jsonDic[@"isOk"];
+        
+        if (isOk.integerValue == 1)
+        {
+            NSArray *array = jsonDic[@"result"];
+            [results addObjectsFromArray:array];
+            
+            if (results.count == 0)
+            {
+                _tableView.hidden = YES;
+            }
+            else
+            {
+                _tableView.hidden = NO;
+                [_tableView reloadData];
+            }
+        }
+        else
+        {
+            _tableView.hidden = YES;
+        }
+        
+        
+    } errorHandler:^(MKNetworkOperation *errorOp, NSError* error) {
+        
+    }];
+    
+    [APPDelagate.appNetwork enqueueOperation:op];
+    
+}
+
+
+#pragma mark - UITableView dataSource
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
+{
+    return [results count];
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    
+    if (_currentSelectedIndex==SelectedTitledDynamicButton)
+    {
+        static NSString *cellIdentifier = @"dynamicCell";
+        HomeDynamicCell *cell = (HomeDynamicCell *)[tableView dequeueReusableCellWithIdentifier:cellIdentifier];
+        if (cell==nil) {
+            cell = [[HomeDynamicCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:cellIdentifier];
+        }
+        
+        if (results.count > 0)
+        {
+            [cell setValue:[results objectAtIndex:indexPath.row] withRow:indexPath.row];
+        }
+        
+        cell.selectionStyle = UITableViewCellSelectionStyleNone;
+        return cell;
+
+    }
+    else
+    {
+        static NSString *cellIdentifier = @"cell";
+        HomeCommonCell *cell = (HomeCommonCell *)[tableView dequeueReusableCellWithIdentifier:cellIdentifier];
+        if (cell==nil) {
+            cell = [[HomeCommonCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:cellIdentifier];
+        }
+        
+        if (results.count > 0)
+        {
+            [cell setValue:[results objectAtIndex:indexPath.row] withRow:indexPath.row];
+        }
+        
+        cell.selectionStyle = UITableViewCellSelectionStyleNone;
+        return cell;
+
+    }
+
+    return nil;
+}
+
+
+#pragma mark - UITableView delegate
+- (CGFloat)tableView:(UITableView *)tableView heightForRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    
+    CGFloat height = 165 + self.view.frame.size.width*3/4;
+    CGFloat sy = 0;
+    CGFloat count = 0;
+    
+    NSString *dynamicIdString = [[results objectAtIndex:indexPath.row] objectForKey:@"dynamic_id"];
+    if ([dynamicIdString isKindOfClass:[NSNull class]]||dynamicIdString==nil)
+    {
+
+    }
+    else
+    {
+        height = height - 60;
+        
+        NSString *descriptionString = [[results objectAtIndex:indexPath.row] objectForKey:@"des"];
+        if (descriptionString==nil||[descriptionString isEqualToString:@""])
+        {
+            //
+        }
+        else
+        {
+            CGRect rect = [descriptionString boundingRectWithSize:CGSizeMake(self.view.frame.size.width-20, 1000) options:NSStringDrawingUsesLineFragmentOrigin attributes:[NSDictionary dictionaryWithObjectsAndKeys:[UIFont systemFontOfSize:15.0], NSFontAttributeName, nil] context:nil];
+            height = height + rect.size.height;
+        }
+
+ 
+    }
+    
+    NSString *likeUserString = [[results objectAtIndex:indexPath.row] objectForKey:@"num_like"];
+    if ([likeUserString integerValue]==0) {
+        
+    }else{
+        height = height + 50;
+    }
+    
+    NSArray *array = [[results objectAtIndex:indexPath.row] objectForKey:@"comment"];
+    if ([array count]>3) {
+        count = 3;
+    }else{
+        count = [array count];
+    }
+    
+    if (count==0){
+        
+    }else{
+        
+        for (NSInteger i=0; i<count; i++)
+        {
+            
+            NSString *commentString = [NSString stringWithFormat:@"%@: %@",[[array objectAtIndex:i] objectForKey:@"name"],[[array objectAtIndex:i] objectForKey:@"comment"]];
+            CGRect rect = [commentString boundingRectWithSize:CGSizeMake(tableView.frame.size.width-20, 1000) options:NSStringDrawingUsesLineFragmentOrigin attributes:[NSDictionary dictionaryWithObjectsAndKeys:[UIFont systemFontOfSize:15.0], NSFontAttributeName, nil] context:nil];
+            sy = sy + rect.size.height;
+            
+        }
+    }
+    
+    return height + sy + 40;
+}
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
+{
+    [tableView deselectRowAtIndexPath:indexPath animated:YES];
+}
+
+
+#pragma mark - 点击titleView按钮
+-(void)onclickTitleViewEvent:(DataEvent*)event
+{
+    NSNumber* num = (NSNumber*)event.data;
+    NSLog(@"click postion: %@",num);
+    //NSLog(@"click postion target: %@",event.target);
+    
+    if (_currentSelectedIndex == [num integerValue]) {
+        return;
+    }
+    
+    switch ([num integerValue]) {
+        case SelectedTitleNewsetButton:
+        {
+            _requestPath = home_hotWays;
+            _currentSelectedIndex = SelectedTitleNewsetButton;
+            self.navigationItem.rightBarButtonItem.customView.hidden = NO;
+            break;
+        }
+        case SelectedTitleAttentionButton:
+        {
+            _requestPath = home_careWays;
+            _currentSelectedIndex = SelectedTitleAttentionButton;
+            self.navigationItem.rightBarButtonItem.customView.hidden = NO;
+            break;
+        }
+        case SelectedTitledDynamicButton:
+        {
+            _requestPath = home_myCareDynamic;
+            _currentSelectedIndex = SelectedTitledDynamicButton;
+              self.navigationItem.rightBarButtonItem.customView.hidden = YES;
+            break;
+        }
+            
+        default:
+            break;
+    }
+    
+    [results removeAllObjects];
+    [self loadHomeData];
+}
+
+#pragma mark - 点击搜索按钮
+-(void)onClickRightBtn:(UIButton *)button
+{
+    
+}
+
+
+-(void)dealloc
+{
+    for (UIView *subView in self.view.subviews) {
+        [subView removeFromSuperview];
+    }
+    
+    _tableView = nil;
+    results = nil;
+}
+
+- (void)didReceiveMemoryWarning
+{
+    [super didReceiveMemoryWarning];
+    // Dispose of any resources that can be recreated.
+}
+
+@end
